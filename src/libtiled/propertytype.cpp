@@ -173,8 +173,9 @@ QString EnumPropertyType::storageTypeToString(StorageType type)
     case IntValue:
         return QStringLiteral("int");
     case StringValue:
-        return QStringLiteral("string");
+        break;
     }
+    return QStringLiteral("string");
 }
 
 // ClassPropertyType

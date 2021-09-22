@@ -127,8 +127,6 @@ public:
     void fromVariant(const QVariantHash &variant, const ExportContext & ) override;
 };
 
-//typedef std::vector<std::unique_ptr<PropertyType>> PropertyTypes;
-
 /**
  * Container class for property types.
  */
