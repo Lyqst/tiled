@@ -52,13 +52,18 @@ public:
     void setMapDocument(MapDocument *mapDocument);
 
 private:
+    QtVariantProperty *createPropertyInternal(const QString &name, const QVariant &value);
+
+    void valueChanged(QtProperty *property, const QVariant &value);
     void propertyTypesChanged();
+
     void setPropertyAttributes(QtProperty *property, const PropertyType &propertyType);
 
     QtVariantPropertyManager *mPropertyManager;
     MapDocument *mMapDocument = nullptr;
     QHash<QString, QtVariantProperty *> mProperties;
     QHash<QtProperty *, int> mPropertyTypeIds;
+    QHash<QtProperty *, QtProperty *> mPropertyParents;
 };
 
 inline bool CustomPropertiesHelper::hasProperty(QtProperty *property) const

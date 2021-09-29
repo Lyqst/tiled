@@ -32,6 +32,9 @@ CustomPropertiesHelper::CustomPropertiesHelper(QtVariantPropertyManager *propert
     : QObject(parent)
     , mPropertyManager(propertyManager)
 {
+    connect(propertyManager, &QtVariantPropertyManager::valueChanged,
+            this, &CustomPropertiesHelper::valueChanged);
+
     connect(Preferences::instance(), &Preferences::propertyTypesChanged,
             this, &CustomPropertiesHelper::propertyTypesChanged);
 }
@@ -41,6 +44,14 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
 {
     Q_ASSERT(!mProperties.contains(name));
 
+    QtVariantProperty *property = createPropertyInternal(name, value);
+    mProperties.insert(name, property);
+
+    return property;
+}
+
+QtVariantProperty *CustomPropertiesHelper::createPropertyInternal(const QString &name, const QVariant &value)
+{
     int type = value.userType();
 
     const PropertyType *propertyType = nullptr;
@@ -48,8 +59,24 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
     if (type == propertyValueId()) {
         const PropertyValue propertyValue = value.value<PropertyValue>();
         propertyType = propertyValue.type();
-        // todo: support more than just enum properties
-        type = QtVariantPropertyManager::enumTypeId();
+
+        if (propertyType) {
+            switch (propertyType->type) {
+            case PropertyType::PT_Invalid:
+                break;
+            case PropertyType::PT_Class:
+                type = VariantPropertyManager::unstyledGroupTypeId();
+                break;
+            case PropertyType::PT_Enum: {
+                const auto &enumType = static_cast<const EnumPropertyType&>(*propertyType);
+                if (enumType.valuesAsFlags)
+                    type = QtVariantPropertyManager::flagTypeId();
+                else
+                    type = QtVariantPropertyManager::enumTypeId();
+                break;
+            }
+            }
+        }
     }
 
     if (type == objectRefTypeId())
@@ -60,8 +87,6 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
         // fall back to string property for unsupported property types
         property = mPropertyManager->addProperty(QMetaType::QString, name);
     }
-
-    mProperties.insert(name, property);
 
     if (type == QMetaType::Bool)
         property->setAttribute(QLatin1String("textVisible"), false);
@@ -77,6 +102,7 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
         mPropertyTypeIds.insert(property, 0);
     }
 
+    // todo: this doesn't set value of child properties...
     property->setValue(toDisplayValue(value));
 
     return property;
@@ -85,8 +111,13 @@ QtVariantProperty *CustomPropertiesHelper::createProperty(const QString &name,
 void CustomPropertiesHelper::deleteProperty(QtProperty *property)
 {
     Q_ASSERT(mPropertyTypeIds.contains(property));
-    mProperties.remove(property->propertyName());
+
+    // not the case for child properties
+    if (mProperties.value(property->propertyName()) == property)
+        mProperties.remove(property->propertyName());
+
     mPropertyTypeIds.remove(property);
+    mPropertyParents.remove(property);
     delete property;
 }
 
@@ -121,6 +152,23 @@ QVariant CustomPropertiesHelper::fromDisplayValue(QtProperty *property,
     return value;
 }
 
+void CustomPropertiesHelper::valueChanged(QtProperty *property, const QVariant &value)
+{
+    // This function handles changes in sub-properties only
+    auto parent = static_cast<QtVariantProperty*>(mPropertyParents.value(property));
+    if (!parent)
+        return;
+
+    auto variantMap = parent->value().toMap();
+    qDebug() << "before:" << variantMap;
+    variantMap.insert(property->propertyName(), fromDisplayValue(property, value));
+    qDebug() << "after:" << variantMap;
+
+    // This might trigger another call of this function, in case of recursive
+    // class members.
+    parent->setValue(variantMap);
+}
+
 void CustomPropertiesHelper::propertyTypesChanged()
 {
     for (const auto &type : Object::propertyTypes()) {
@@ -138,13 +186,35 @@ void CustomPropertiesHelper::setPropertyAttributes(QtProperty *property, const P
 {
     switch (propertyType.type) {
     case Tiled::PropertyType::PT_Invalid:
-    case Tiled::PropertyType::PT_Class:
+    case Tiled::PropertyType::PT_Class: {
+        const auto &classType = static_cast<const ClassPropertyType&>(propertyType);
+
+        // Delete any existing sub-properties
+        qDeleteAll(property->subProperties());
+
+        // Set up new properties
+        QMapIterator<QString, QVariant> it(classType.members);
+        while (it.hasNext()) {
+            it.next();
+            const QString &name = it.key();
+            const QVariant &value = it.value();
+
+            QtVariantProperty *subProperty = createPropertyInternal(name, value);
+            property->addSubProperty(subProperty);
+            mPropertyParents.insert(subProperty, property);
+        }
+
+        // TODO: How to set the actual value on the sub-properties?
         break;
+    }
     case Tiled::PropertyType::PT_Enum: {
         const auto &enumType = static_cast<const EnumPropertyType&>(propertyType);
-
-        // TODO: Support icons for enum values
-        mPropertyManager->setAttribute(property, QStringLiteral("enumNames"), enumType.values);
+        if (enumType.valuesAsFlags) {
+            mPropertyManager->setAttribute(property, QStringLiteral("flagNames"), enumType.values);
+        } else {
+            // TODO: Support icons for enum values
+            mPropertyManager->setAttribute(property, QStringLiteral("enumNames"), enumType.values);
+        }
         break;
     }
     }

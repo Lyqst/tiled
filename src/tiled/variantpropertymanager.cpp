@@ -98,7 +98,7 @@ int VariantPropertyManager::valueType(int propertyType) const
     if (propertyType == alignmentTypeId())
         return propertyType;
     if (propertyType == unstyledGroupTypeId())
-        return propertyType;
+        return QMetaType::QVariantMap; // allows storing any child values
     return QtVariantPropertyManager::valueType(propertyType);
 }
 
@@ -351,7 +351,8 @@ void VariantPropertyManager::initializeProperty(QtProperty *property)
     const int type = propertyType(property);
     if (type == filePathTypeId()
             || type == displayObjectRefTypeId()
-            || type == tilesetParametersTypeId()) {
+            || type == tilesetParametersTypeId()
+            || type == unstyledGroupTypeId()) { // for storing hash map
         mValues[property] = QVariant();
         if (type == filePathTypeId())
             mFilePathAttributes[property] = FilePathAttributes();
