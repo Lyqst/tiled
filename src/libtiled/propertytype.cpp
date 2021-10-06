@@ -30,6 +30,8 @@
 
 #include "properties.h"
 
+#include <QVector>
+
 namespace Tiled {
 
 int PropertyType::nextId = 0;
@@ -127,11 +129,11 @@ QVariant EnumPropertyType::wrap(const QVariant &value) const
             int flags = 0;
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-            const auto stringValues = stringValue.splitRef(QLatin1Char(','), QString::SkipEmptyParts);
+            const QVector<QStringRef> stringValues = stringValue.splitRef(QLatin1Char(','), QString::SkipEmptyParts);
 #elif QT_VERSION < QT_VERSION_CHECK(6,0,0)
-            const auto stringValues = stringValue.splitRef(QLatin1Char(','), Qt::SkipEmptyParts);
+            const QVector<QStringRef> stringValues = stringValue.splitRef(QLatin1Char(','), Qt::SkipEmptyParts);
 #else
-            const auto stringValues = QStringView(stringValue).split(QLatin1Char(','), Qt::SkipEmptyParts);
+            const QList<QStringView> stringValues = QStringView(stringValue).split(QLatin1Char(','), Qt::SkipEmptyParts);
 #endif
 
             for (const auto &stringValue : stringValues) {
