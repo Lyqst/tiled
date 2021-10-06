@@ -28,6 +28,7 @@
 
 #include "propertytype.h"
 
+#include "containerhelpers.h"
 #include "properties.h"
 
 #include <QVector>
@@ -137,7 +138,7 @@ QVariant EnumPropertyType::wrap(const QVariant &value) const
 #endif
 
             for (const auto &stringValue : stringValues) {
-                const int index = values.indexOf(stringValue);
+                const int index = indexOf(values, stringValue);
 
                 // In case of any unrecognized flag name we keep the original
                 // string value, to prevent silent data loss.
